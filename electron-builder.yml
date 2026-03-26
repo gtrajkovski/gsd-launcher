@@ -1,0 +1,52 @@
+appId: com.gtrajkovski.gsd-launcher
+productName: GSD Launcher
+copyright: Copyright 2026
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - "main.js"
+  - "preload.js"
+  - "index.html"
+  - "package.json"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icons/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: true
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  icon: build/icons/icon.png
+  category: public.app-category.developer-tools
+
+dmg:
+  iconSize: 100
+  contents:
+    - x: 110
+      y: 150
+    - x: 240
+      y: 150
+      type: link
+      path: /Applications
+
+linux:
+  target:
+    - AppImage
+  icon: build/icons/icon.png
+  category: Development
+
+publish:
+  provider: github
+  releaseType: release

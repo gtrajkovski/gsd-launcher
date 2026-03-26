@@ -4,14 +4,24 @@
   "description": "Desktop launcher for managing GSD (Get Shit Done) projects with Claude Code",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
-  "keywords": ["gsd", "claude-code", "launcher", "electron"],
+  "keywords": [
+    "gsd",
+    "claude-code",
+    "launcher",
+    "electron"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "electron": "^40.0.0"
+    "electron": "^40.0.0",
+    "electron-builder": "^25.1.8"
   }
 }
