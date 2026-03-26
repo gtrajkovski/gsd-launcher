@@ -16,7 +16,8 @@ function createWindow() {
 }
 
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
 // Check if GSD is installed and get version info
 function getGsdStatus() {
@@ -56,6 +57,9 @@ function findGsdProjects() {
     path.join(home, 'Desktop'),
     path.join(home, 'Projects'),
     path.join(home, 'repos'),
+    path.join(home, 'src'),
+    path.join(home, 'dev'),
+    path.join(home, 'code'),
     path.join(home, 'github_repos'),
     path.join(home, 'OneDrive', 'Desktop'),
   ].filter(d => { try { return fs.existsSync(d); } catch (_) { return false; } });
@@ -180,8 +184,18 @@ function getVSCodePath() {
   return null;
 }
 
+// Validate a path is a real directory (prevents command injection)
+function validatePath(p) {
+  if (typeof p !== 'string' || p.length === 0) return false;
+  // Block shell metacharacters
+  if (/[;&|`$(){}!<>]/.test(p)) return false;
+  try { return fs.statSync(p).isDirectory(); } catch (_) { return false; }
+}
+
 // Launch terminal with claude (cross-platform)
 function launchInTerminal(projectPath) {
+  if (!validatePath(projectPath)) throw new Error('Invalid project path');
+
   if (process.platform === 'win32') {
     // Prefer Windows Terminal, fall back to cmd
     try {
@@ -207,6 +221,7 @@ function launchInTerminal(projectPath) {
 }
 
 function launchInVSCode(projectPath) {
+  if (!validatePath(projectPath)) return { error: 'Invalid project path' };
   const codePath = getVSCodePath();
   if (!codePath) return { error: 'VS Code not found' };
   exec(`"${codePath}" "${projectPath}"`, { shell: true });
@@ -230,24 +245,6 @@ ipcMain.handle('launch-vscode', async (_event, projectPath) => {
   }
 });
 
-// Keep backward compat
-ipcMain.handle('launch-claude', async (_event, repoPath) => {
-  try {
-    launchInTerminal(repoPath);
-    return { ok: true };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle('open-project', async (_event, projectPath) => {
-  try {
-    launchInTerminal(projectPath);
-    return { ok: true };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
 
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog({
