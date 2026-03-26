@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GSD Launcher</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #ffffff;
+      color: #24292f;
+      padding: 24px;
+    }
+    h1 { font-size: 22px; margin-bottom: 2px; }
+    .title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .title-row h1 { color: #cf6a1c; }
+    .subtitle { color: #57606a; font-size: 14px; margin-bottom: 20px; }
+    .loading { color: #57606a; padding: 40px; text-align: center; }
+    .error { color: #cf222e; padding: 20px; }
+
+    /* Status bar */
+    .status-bar {
+      display: flex; gap: 16px; align-items: center;
+      background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 8px;
+      padding: 12px 18px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .status-item { font-size: 13px; color: #57606a; }
+    .status-item strong { color: #24292f; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot-green { background: #3fb950; }
+    .dot-red { background: #f85149; }
+    .dot-yellow { background: #d29922; }
+
+    /* Buttons */
+    .btn {
+      font-size: 13px; padding: 6px 16px; border-radius: 6px;
+      border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f;
+      cursor: pointer; font-weight: 600; transition: background 0.15s;
+    }
+    .btn:hover { background: #eaeef2; }
+    .btn-primary { background: #cf6a1c; color: #ffffff; border-color: #cf6a1c; }
+    .btn-primary:hover { background: #b35c18; }
+    .btn-green { background: #1a7f37; color: #fff; border-color: #1a7f37; }
+    .btn-green:hover { background: #2da44e; }
+
+    /* Sections */
+    .section-title {
+      font-size: 14px; font-weight: 600; color: #57606a;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 10px; margin-top: 8px;
+    }
+
+    /* Project list */
+    .project-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .project {
+      background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 8px;
+      padding: 14px 18px; transition: border-color 0.15s;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .project:hover { border-color: #cf6a1c; }
+    .project-info { flex: 1; }
+    .project-name { font-weight: 600; font-size: 15px; color: #cf6a1c; }
+    .project-path { font-size: 12px; color: #1a7f37; margin-top: 3px; font-family: monospace; }
+    .project-state { font-size: 12px; color: #57606a; margin-top: 3px; }
+    .project-actions { display: flex; gap: 6px; align-items: center; margin-left: 12px; flex-shrink: 0; }
+    .btn-sm {
+      font-size: 12px; padding: 5px 12px; border-radius: 5px;
+      border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f;
+      cursor: pointer; font-weight: 600; transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-sm:hover { background: #eaeef2; }
+    .btn-sm-primary { background: #cf6a1c; color: #fff; border-color: #cf6a1c; }
+    .btn-sm-primary:hover { background: #b35c18; }
+    .btn-sm-blue { background: #0969da; color: #fff; border-color: #0969da; }
+    .btn-sm-blue:hover { background: #0550ae; }
+    .badge {
+      font-size: 11px; padding: 3px 10px; border-radius: 12px;
+      font-weight: 600; white-space: nowrap;
+    }
+    .badge-active { background: #dafbe1; color: #1a7f37; border: 1px solid #aceebb; }
+    .badge-planning { background: #fff8c5; color: #9a6700; border: 1px solid #f5e0a0; }
+
+    /* Actions row */
+    .actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+
+    /* Commands reference */
+    .commands-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+    .cmd-item {
+      font-size: 12px; padding: 8px 12px; background: #f6f8fa;
+      border: 1px solid #d0d7de; border-radius: 6px;
+    }
+    .cmd-name { color: #cf6a1c; font-family: monospace; font-weight: 600; }
+    .cmd-desc { color: #57606a; margin-left: 8px; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 40px; color: #57606a;
+      background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 8px;
+    }
+    .empty-state p { margin-bottom: 12px; }
+
+    /* Search bar */
+    .search-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    }
+    .search-input {
+      flex: 1; padding: 9px 14px; font-size: 14px;
+      border: 1px solid #d0d7de; border-radius: 8px;
+      background: #ffffff; color: #24292f;
+      outline: none; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: #cf6a1c; box-shadow: 0 0 0 3px rgba(207,106,28,0.15); }
+    .search-input::placeholder { color: #8b949e; }
+    .search-count { font-size: 12px; color: #57606a; white-space: nowrap; }
+    .project.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="title-row">
+    <h1>GET SHIT DONE</h1>
+  </div>
+  <p class="subtitle">Launch and manage GSD projects with Claude Code</p>
+
+  <div id="content"><div class="loading">Scanning projects...</div></div>
+
+  <script>
+    async function init() {
+      const content = document.getElementById('content');
+      const data = await window.api.getStatus();
+
+      if (data.error) {
+        content.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+        return;
+      }
+
+      const { status, projects } = data;
+      let html = '';
+
+      // Status bar
+      html += `<div class="status-bar">`;
+      html += `<span class="status-item">
+        <span class="status-dot ${status.claudeAvailable ? 'dot-green' : 'dot-red'}"></span>
+        <strong>Claude Code:</strong> ${status.claudeAvailable ? 'Available' : 'Not Found'}
+      </span>`;
+      html += `<span class="status-item">
+        <span class="status-dot ${status.installed ? 'dot-green' : 'dot-yellow'}"></span>
+        <strong>GSD:</strong> ${status.installed ? 'Installed (' + (status.location || '') + ')' : 'Not Installed'}
+      </span>`;
+      if (status.latestVersion) {
+        html += `<span class="status-item"><strong>Latest:</strong> v${status.latestVersion}</span>`;
+      }
+      html += `<div style="flex:1"></div>`;
+      if (!status.installed) {
+        html += `<button class="btn btn-primary" onclick="installGsd()">Install GSD</button>`;
+      } else {
+        html += `<button class="btn" onclick="updateGsd()">Update GSD</button>`;
+      }
+      html += `</div>`;
+
+      // Action buttons
+      html += `<div class="actions-row">`;
+      html += `<button class="btn btn-green" onclick="openFolderTerminal()">Open Folder in Terminal</button>`;
+      html += `<button class="btn btn-primary" onclick="openFolderVSCode()">Open Folder in VS Code</button>`;
+      html += `<button class="btn" onclick="newProject()">New GSD Project</button>`;
+      html += `</div>`;
+
+      // Projects
+      html += `<div class="section-title">GSD Projects</div>`;
+      if (projects.length === 0) {
+        html += `<div class="empty-state">
+          <p>No GSD projects found.</p>
+          <p>Open a project folder and run <strong>/gsd:new-project</strong> in Claude Code to get started.</p>
+        </div>`;
+      } else {
+        html += `<div class="search-row">`;
+        html += `<input type="text" class="search-input" id="projectSearch" placeholder="Search projects..." autofocus>`;
+        html += `<span class="search-count" id="searchCount">${projects.length} project${projects.length !== 1 ? 's' : ''}</span>`;
+        html += `</div>`;
+        html += `<div class="project-list" id="projectList">`;
+        projects.forEach(p => {
+          const stateText = p.state ? p.state : (p.hasPlanning ? 'In Progress' : 'Initialized');
+          const badgeClass = p.state ? 'badge-active' : 'badge-planning';
+          const esc = p.path.replace(/\\/g, '\\\\');
+          html += `<div class="project" data-name="${p.name.toLowerCase()}" data-folder="${p.folder.toLowerCase()}" data-path="${p.path.toLowerCase()}">
+            <div class="project-info">
+              <div class="project-name">${p.name}</div>
+              <div class="project-path">${p.path}</div>
+              ${p.milestone ? `<div class="project-state">Milestone: ${p.milestone}</div>` : ''}
+              <div class="project-state">${stateText}</div>
+            </div>
+            <div class="project-actions">
+              <span class="badge ${badgeClass}">${stateText}</span>
+              <button class="btn-sm btn-sm-primary" onclick="launchTerminal('${esc}')" title="Open Claude Code in terminal">Terminal</button>
+              <button class="btn-sm btn-sm-blue" onclick="launchVSCode('${esc}')" title="Open in VS Code">VS Code</button>
+            </div>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      // Commands quick reference
+      html += `<div class="section-title">GSD Commands Reference</div>`;
+      html += `<div class="commands-grid">`;
+      const cmds = [
+        ['/gsd:new-project', 'Initialize new project'],
+        ['/gsd:progress', 'Check current progress'],
+        ['/gsd:discuss-phase N', 'Shape implementation'],
+        ['/gsd:plan-phase N', 'Research + plan phase'],
+        ['/gsd:execute-phase N', 'Execute phase plans'],
+        ['/gsd:verify-work N', 'User acceptance testing'],
+        ['/gsd:quick', 'Quick ad-hoc task'],
+        ['/gsd:debug', 'Systematic debugging'],
+        ['/gsd:map-codebase', 'Analyze existing code'],
+        ['/gsd:complete-milestone', 'Archive + tag release'],
+        ['/gsd:pause-work', 'Save session context'],
+        ['/gsd:resume-work', 'Restore last session'],
+      ];
+      cmds.forEach(([name, desc]) => {
+        html += `<div class="cmd-item"><span class="cmd-name">${name}</span><span class="cmd-desc">${desc}</span></div>`;
+      });
+      html += `</div>`;
+
+      content.innerHTML = html;
+
+      // Wire up search filtering
+      const searchInput = document.getElementById('projectSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const query = searchInput.value.toLowerCase().trim();
+          const items = document.querySelectorAll('#projectList .project');
+          let visible = 0;
+          items.forEach(el => {
+            const name = el.getAttribute('data-name') || '';
+            const folder = el.getAttribute('data-folder') || '';
+            const path = el.getAttribute('data-path') || '';
+            const match = !query || name.includes(query) || folder.includes(query) || path.includes(query);
+            el.classList.toggle('hidden', !match);
+            if (match) visible++;
+          });
+          const countEl = document.getElementById('searchCount');
+          if (countEl) {
+            countEl.textContent = query
+              ? `${visible} of ${items.length} project${items.length !== 1 ? 's' : ''}`
+              : `${items.length} project${items.length !== 1 ? 's' : ''}`;
+          }
+        });
+      }
+    }
+
+    async function installGsd() {
+      const btn = event.target;
+      btn.textContent = 'Installing...';
+      btn.disabled = true;
+      const result = await window.api.installGsd();
+      if (result.error) {
+        alert('Install failed: ' + result.error);
+        btn.textContent = 'Install GSD';
+      } else {
+        btn.textContent = 'Installed!';
+        setTimeout(() => init(), 1000);
+      }
+      btn.disabled = false;
+    }
+
+    async function updateGsd() {
+      const btn = event.target;
+      btn.textContent = 'Updating...';
+      btn.disabled = true;
+      const result = await window.api.updateGsd();
+      if (result.error) {
+        alert('Update failed: ' + result.error);
+        btn.textContent = 'Update GSD';
+      } else {
+        btn.textContent = 'Updated!';
+        setTimeout(() => init(), 1000);
+      }
+      btn.disabled = false;
+    }
+
+    async function launchTerminal(projectPath) {
+      const result = await window.api.launchTerminal(projectPath);
+      if (result.error) alert('Failed to open: ' + result.error);
+    }
+
+    async function launchVSCode(projectPath) {
+      const result = await window.api.launchVSCode(projectPath);
+      if (result.error) alert(result.error);
+    }
+
+    async function openFolderTerminal() {
+      const result = await window.api.selectFolder();
+      if (result.canceled) return;
+      await window.api.launchTerminal(result.path);
+    }
+
+    async function openFolderVSCode() {
+      const result = await window.api.selectFolder();
+      if (result.canceled) return;
+      const res = await window.api.launchVSCode(result.path);
+      if (res.error) alert(res.error);
+    }
+
+    async function newProject() {
+      const result = await window.api.selectFolder();
+      if (result.canceled) return;
+      await window.api.launchTerminal(result.path);
+    }
+
+    init();
+  </script>
+</body>
+</html>
