@@ -47,11 +47,32 @@ function getGsdStatus() {
   return status;
 }
 
+// Config file for user-defined scan directories
+function getConfigPath() {
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  return path.join(home, '.gsd-launcher.json');
+}
+
+function loadConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(getConfigPath(), 'utf-8'));
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveConfig(config) {
+  fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), 'utf-8');
+}
+
 // Scan for projects that have .planning/ directory (GSD projects)
 function findGsdProjects() {
   const projects = [];
   const home = process.env.USERPROFILE || process.env.HOME || '';
-  const searchDirs = [
+  const config = loadConfig();
+
+  // Default scan locations — common project directories
+  const defaultDirs = [
     home,
     path.join(home, 'Documents'),
     path.join(home, 'Desktop'),
@@ -62,7 +83,22 @@ function findGsdProjects() {
     path.join(home, 'code'),
     path.join(home, 'github_repos'),
     path.join(home, 'OneDrive', 'Desktop'),
-  ].filter(d => { try { return fs.existsSync(d); } catch (_) { return false; } });
+  ];
+
+  // On Windows, also scan drive roots (C:\, D:\, etc.) for top-level projects
+  if (process.platform === 'win32') {
+    for (const letter of ['C', 'D', 'E']) {
+      const root = `${letter}:\\`;
+      if (fs.existsSync(root)) defaultDirs.push(root);
+      const projDir = `${letter}:\\Projects`;
+      if (fs.existsSync(projDir)) defaultDirs.push(projDir);
+    }
+  }
+
+  // Merge with user-added custom directories
+  const customDirs = config.scanDirs || [];
+  const allDirs = [...new Set([...defaultDirs, ...customDirs])];
+  const searchDirs = allDirs.filter(d => { try { return fs.existsSync(d); } catch (_) { return false; } });
 
   for (const baseDir of searchDirs) {
     try {
@@ -253,4 +289,36 @@ ipcMain.handle('select-folder', async () => {
   });
   if (result.canceled) return { canceled: true };
   return { path: result.filePaths[0] };
+});
+
+// Add a custom scan directory
+ipcMain.handle('add-scan-dir', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Add a folder to scan for GSD projects'
+  });
+  if (result.canceled) return { canceled: true };
+  const config = loadConfig();
+  if (!config.scanDirs) config.scanDirs = [];
+  const dir = result.filePaths[0];
+  if (!config.scanDirs.includes(dir)) {
+    config.scanDirs.push(dir);
+    saveConfig(config);
+  }
+  return { path: dir };
+});
+
+// Remove a custom scan directory
+ipcMain.handle('remove-scan-dir', async (_event, dir) => {
+  const config = loadConfig();
+  if (!config.scanDirs) return { ok: true };
+  config.scanDirs = config.scanDirs.filter(d => d !== dir);
+  saveConfig(config);
+  return { ok: true };
+});
+
+// Get current custom scan dirs
+ipcMain.handle('get-scan-dirs', async () => {
+  const config = loadConfig();
+  return config.scanDirs || [];
 });

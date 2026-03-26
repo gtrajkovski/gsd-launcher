@@ -7,4 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   launchTerminal: (path) => ipcRenderer.invoke('launch-terminal', path),
   launchVSCode: (path) => ipcRenderer.invoke('launch-vscode', path),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
+  addScanDir: () => ipcRenderer.invoke('add-scan-dir'),
+  removeScanDir: (dir) => ipcRenderer.invoke('remove-scan-dir', dir),
+  getScanDirs: () => ipcRenderer.invoke('get-scan-dirs'),
 });

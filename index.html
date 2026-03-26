@@ -133,6 +133,23 @@
       background: #e8e8e8; padding: 1px 5px; border-radius: 3px;
       font-size: 12px; font-family: monospace;
     }
+
+    /* Scan dirs */
+    .scan-dirs {
+      font-size: 12px; color: #57606a; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .scan-dirs-label { font-weight: 600; }
+    .scan-dir-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #ddf4ff; color: #0969da; padding: 3px 10px;
+      border-radius: 12px; font-family: monospace; font-size: 11px;
+    }
+    .scan-dir-remove {
+      cursor: pointer; font-size: 14px; color: #cf222e;
+      font-weight: bold; line-height: 1;
+    }
+    .scan-dir-remove:hover { color: #a40e26; }
   </style>
 </head>
 <body>
@@ -189,7 +206,19 @@
       html += `<button class="btn btn-green" onclick="openFolderTerminal()">Open Folder in Terminal</button>`;
       html += `<button class="btn btn-primary" onclick="openFolderVSCode()">Open Folder in VS Code</button>`;
       html += `<button class="btn" onclick="newProject()">New GSD Project</button>`;
+      html += `<button class="btn" onclick="addScanFolder()">+ Add Scan Folder</button>`;
       html += `</div>`;
+
+      // Show custom scan dirs if any
+      const customDirs = await window.api.getScanDirs();
+      if (customDirs.length > 0) {
+        html += `<div class="scan-dirs">`;
+        html += `<span class="scan-dirs-label">Custom scan folders:</span> `;
+        customDirs.forEach(d => {
+          html += `<span class="scan-dir-tag">${esc(d)} <span class="scan-dir-remove" data-dir="${esc(d)}">&times;</span></span>`;
+        });
+        html += `</div>`;
+      }
 
       // Projects
       html += `<div class="section-title">GSD Projects</div>`;
@@ -359,6 +388,21 @@
       if (result.canceled) return;
       await window.api.launchTerminal(result.path);
     }
+
+    async function addScanFolder() {
+      const result = await window.api.addScanDir();
+      if (result.canceled) return;
+      init(); // refresh to pick up new projects
+    }
+
+    // Wire up remove buttons for custom scan dirs via delegation
+    document.addEventListener('click', async (e) => {
+      const remove = e.target.closest('.scan-dir-remove');
+      if (!remove) return;
+      const dir = remove.dataset.dir;
+      await window.api.removeScanDir(dir);
+      init();
+    });
 
     init();
   </script>
