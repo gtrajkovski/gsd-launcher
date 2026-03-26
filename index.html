@@ -150,6 +150,30 @@
       font-weight: bold; line-height: 1;
     }
     .scan-dir-remove:hover { color: #a40e26; }
+
+    /* Setup panel */
+    .setup-panel {
+      background: #fff8f0; border: 1px solid #f0c89a; border-radius: 8px;
+      padding: 16px 20px; margin-bottom: 16px;
+    }
+    .setup-title {
+      font-size: 14px; font-weight: 700; color: #cf6a1c;
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+    }
+    .setup-step {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 0; border-bottom: 1px solid #f0e0d0;
+    }
+    .setup-step:last-child { border-bottom: none; }
+    .setup-num {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+      background: #cf6a1c; color: #fff; font-size: 14px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .setup-done { background: #1a7f37; }
+    .setup-info { font-size: 13px; }
+    .setup-ok { color: #1a7f37; font-weight: 600; }
+    .setup-missing { color: #cf222e; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -180,23 +204,74 @@
       const { status, projects } = data;
       let html = '';
 
-      // Status bar
+      // Prerequisites check — show setup steps if anything is missing
+      const missing = !status.nodeAvailable || !status.claudeAvailable || !status.installed;
+      if (missing) {
+        html += `<div class="setup-panel">`;
+        html += `<div class="setup-title">Setup</div>`;
+
+        // Step 1: Node.js
+        html += `<div class="setup-step">`;
+        html += `<span class="setup-num ${status.nodeAvailable ? 'setup-done' : ''}">${status.nodeAvailable ? '&#10003;' : '1'}</span>`;
+        html += `<div class="setup-info"><strong>Node.js</strong> `;
+        if (status.nodeAvailable) {
+          html += `<span class="setup-ok">${esc(status.nodeVersion)} installed</span>`;
+        } else {
+          html += `<span class="setup-missing">Not found</span>`;
+          html += `<button class="btn-sm btn-sm-primary" style="margin-left:10px" onclick="installPrereq('node')">Install Node.js</button>`;
+        }
+        html += `</div></div>`;
+
+        // Step 2: Claude Code
+        html += `<div class="setup-step">`;
+        html += `<span class="setup-num ${status.claudeAvailable ? 'setup-done' : ''}">${status.claudeAvailable ? '&#10003;' : '2'}</span>`;
+        html += `<div class="setup-info"><strong>Claude Code</strong> `;
+        if (status.claudeAvailable) {
+          html += `<span class="setup-ok">installed</span>`;
+        } else if (!status.npmAvailable) {
+          html += `<span class="setup-missing">Needs Node.js first</span>`;
+        } else {
+          html += `<span class="setup-missing">Not found</span>`;
+          html += `<button class="btn-sm btn-sm-primary" style="margin-left:10px" onclick="installPrereq('claude')">Install Claude Code</button>`;
+        }
+        html += `</div></div>`;
+
+        // Step 3: GSD
+        html += `<div class="setup-step">`;
+        html += `<span class="setup-num ${status.installed ? 'setup-done' : ''}">${status.installed ? '&#10003;' : '3'}</span>`;
+        html += `<div class="setup-info"><strong>GSD</strong> `;
+        if (status.installed) {
+          html += `<span class="setup-ok">installed (${esc(status.location || '')})</span>`;
+        } else if (!status.npmAvailable) {
+          html += `<span class="setup-missing">Needs Node.js first</span>`;
+        } else {
+          html += `<span class="setup-missing">Not installed</span>`;
+          html += `<button class="btn-sm btn-sm-primary" style="margin-left:10px" onclick="installGsd()">Install GSD</button>`;
+        }
+        html += `</div></div>`;
+
+        html += `</div>`;
+      }
+
+      // Status bar (compact when everything is installed)
       html += `<div class="status-bar">`;
       html += `<span class="status-item">
+        <span class="status-dot ${status.nodeAvailable ? 'dot-green' : 'dot-red'}"></span>
+        <strong>Node.js:</strong> ${status.nodeAvailable ? esc(status.nodeVersion) : 'Missing'}
+      </span>`;
+      html += `<span class="status-item">
         <span class="status-dot ${status.claudeAvailable ? 'dot-green' : 'dot-red'}"></span>
-        <strong>Claude Code:</strong> ${status.claudeAvailable ? 'Available' : 'Not Found'}
+        <strong>Claude Code:</strong> ${status.claudeAvailable ? 'OK' : 'Missing'}
       </span>`;
       html += `<span class="status-item">
         <span class="status-dot ${status.installed ? 'dot-green' : 'dot-yellow'}"></span>
-        <strong>GSD:</strong> ${status.installed ? 'Installed (' + (status.location || '') + ')' : 'Not Installed'}
+        <strong>GSD:</strong> ${status.installed ? 'Installed' : 'Not Installed'}
       </span>`;
       if (status.latestVersion) {
         html += `<span class="status-item"><strong>Latest:</strong> v${status.latestVersion}</span>`;
       }
       html += `<div style="flex:1"></div>`;
-      if (!status.installed) {
-        html += `<button class="btn btn-primary" onclick="installGsd()">Install GSD</button>`;
-      } else {
+      if (status.installed) {
         html += `<button class="btn" onclick="updateGsd()">Update GSD</button>`;
       }
       html += `</div>`;
@@ -328,6 +403,35 @@
           }
         });
       }
+    }
+
+    async function installPrereq(type) {
+      const btn = event.target;
+      const origText = btn.textContent;
+      btn.textContent = 'Installing...';
+      btn.disabled = true;
+      try {
+        let result;
+        if (type === 'node') {
+          result = await window.api.installNode();
+        } else if (type === 'claude') {
+          result = await window.api.installClaude();
+        }
+        if (result.error) {
+          alert('Install failed: ' + result.error);
+          btn.textContent = origText;
+        } else if (result.manual) {
+          alert(result.message);
+          btn.textContent = 'Waiting...';
+        } else {
+          btn.textContent = 'Installed!';
+          setTimeout(() => init(), 1500);
+        }
+      } catch (e) {
+        alert('Install failed: ' + e.message);
+        btn.textContent = origText;
+      }
+      btn.disabled = false;
     }
 
     async function installGsd() {

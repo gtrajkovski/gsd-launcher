@@ -19,18 +19,42 @@ app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
-// Check if GSD is installed and get version info
+// Check all prerequisites
 function getGsdStatus() {
-  const status = { installed: false, version: null, claudeAvailable: false };
+  const status = {
+    nodeAvailable: false,
+    nodeVersion: null,
+    npmAvailable: false,
+    claudeAvailable: false,
+    claudeVersion: null,
+    installed: false,
+    location: null,
+    latestVersion: null,
+  };
 
-  // Check if Claude Code is available
+  // Check Node.js
   try {
-    execSync('claude --version', { encoding: 'utf-8', timeout: 10000 });
+    const v = execSync('node --version', { encoding: 'utf-8', timeout: 5000 }).trim();
+    status.nodeAvailable = true;
+    status.nodeVersion = v;
+  } catch (_) {}
+
+  // Check npm
+  try {
+    execSync('npm --version', { encoding: 'utf-8', timeout: 5000 });
+    status.npmAvailable = true;
+  } catch (_) {}
+
+  // Check Claude Code
+  try {
+    const v = execSync('claude --version', { encoding: 'utf-8', timeout: 10000 }).trim();
     status.claudeAvailable = true;
+    status.claudeVersion = v;
   } catch (_) {}
 
   // Check for GSD commands globally
-  const globalGsdPath = path.join(process.env.USERPROFILE || process.env.HOME || '', '.claude', 'commands', 'gsd');
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  const globalGsdPath = path.join(home, '.claude', 'commands', 'gsd');
   try {
     if (fs.existsSync(globalGsdPath)) {
       status.installed = true;
@@ -38,11 +62,13 @@ function getGsdStatus() {
     }
   } catch (_) {}
 
-  // Try to get version from npm
-  try {
-    const raw = execSync('npm view get-shit-done-cc version', { encoding: 'utf-8', timeout: 10000 });
-    status.latestVersion = raw.trim();
-  } catch (_) {}
+  // Try to get latest GSD version from npm
+  if (status.npmAvailable) {
+    try {
+      const raw = execSync('npm view get-shit-done-cc version', { encoding: 'utf-8', timeout: 10000 });
+      status.latestVersion = raw.trim();
+    } catch (_) {}
+  }
 
   return status;
 }
@@ -173,12 +199,68 @@ ipcMain.handle('get-status', async () => {
   }
 });
 
+// Install Node.js via system package manager
+ipcMain.handle('install-node', async () => {
+  try {
+    if (process.platform === 'win32') {
+      // Try winget first (built into Windows 10+)
+      try {
+        execSync('winget --version', { encoding: 'utf-8', timeout: 5000 });
+        execSync('winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements', {
+          encoding: 'utf-8', timeout: 300000
+        });
+        return { ok: true };
+      } catch (_) {
+        // Winget not available — open download page
+        exec('start https://nodejs.org', { shell: true });
+        return { ok: true, manual: true, message: 'Opening nodejs.org — please download and install, then restart this app.' };
+      }
+    } else if (process.platform === 'darwin') {
+      // Try brew
+      try {
+        execSync('brew --version', { encoding: 'utf-8', timeout: 5000 });
+        execSync('brew install node', { encoding: 'utf-8', timeout: 300000 });
+        return { ok: true };
+      } catch (_) {
+        exec('open https://nodejs.org');
+        return { ok: true, manual: true, message: 'Opening nodejs.org — please download and install, then restart this app.' };
+      }
+    } else {
+      // Linux — try apt, then dnf, then link
+      for (const [check, cmd] of [['apt', 'sudo apt install -y nodejs npm'], ['dnf', 'sudo dnf install -y nodejs npm']]) {
+        try {
+          execSync(`which ${check}`, { encoding: 'utf-8', timeout: 5000 });
+          execSync(cmd, { encoding: 'utf-8', timeout: 300000 });
+          return { ok: true };
+        } catch (_) {}
+      }
+      exec('xdg-open https://nodejs.org');
+      return { ok: true, manual: true, message: 'Opening nodejs.org — please download and install, then restart this app.' };
+    }
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
+// Install Claude Code via npm
+ipcMain.handle('install-claude', async () => {
+  try {
+    execSync('npm install -g @anthropic-ai/claude-code', {
+      encoding: 'utf-8',
+      timeout: 120000
+    });
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
 ipcMain.handle('install-gsd', async () => {
   try {
     execSync('npx get-shit-done-cc@latest', {
       encoding: 'utf-8',
       timeout: 120000,
-      input: '\n' // auto-accept defaults
+      input: '\n'
     });
     return { ok: true };
   } catch (e) {
