@@ -19,6 +19,77 @@ app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
+// Find an executable by checking common install locations when PATH lookup fails
+function findExecutable(name) {
+  const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+  const ext = isWin ? '.exe' : '';
+
+  const candidates = [];
+  if (isWin) {
+    const pf = process.env.PROGRAMFILES || 'C:\\Program Files';
+    const localApp = process.env.LOCALAPPDATA || '';
+    const appData = process.env.APPDATA || '';
+    candidates.push(
+      path.join(pf, 'nodejs', `${name}${ext}`),
+      path.join('C:\\Program Files', 'nodejs', `${name}${ext}`),
+      path.join('C:\\Program Files (x86)', 'nodejs', `${name}${ext}`),
+      // nvm-windows locations
+      path.join(appData, 'nvm', 'current', `${name}${ext}`),
+      // Volta
+      path.join(localApp, 'Volta', 'bin', `${name}${ext}`),
+      // Scoop
+      path.join(process.env.USERPROFILE || '', 'scoop', 'shims', `${name}${ext}`),
+    );
+    // npm global installs (for claude, etc.)
+    if (name !== 'node' && name !== 'npm') {
+      candidates.push(
+        path.join(appData, 'npm', `${name}.cmd`),
+        path.join(appData, 'npm', `${name}${ext}`),
+      );
+    }
+  } else if (isMac) {
+    candidates.push(
+      `/usr/local/bin/${name}`,
+      `/opt/homebrew/bin/${name}`,
+      // nvm
+      path.join(process.env.HOME || '', '.nvm', 'current', 'bin', name),
+      // Volta
+      path.join(process.env.HOME || '', '.volta', 'bin', name),
+    );
+  } else {
+    candidates.push(
+      `/usr/local/bin/${name}`,
+      `/usr/bin/${name}`,
+      // nvm
+      path.join(process.env.HOME || '', '.nvm', 'current', 'bin', name),
+      // Volta
+      path.join(process.env.HOME || '', '.volta', 'bin', name),
+    );
+  }
+
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  }
+  return null;
+}
+
+// Run a command, falling back to an absolute path if PATH lookup fails
+function tryExec(name, args, opts) {
+  // First try via PATH
+  try {
+    return execSync(`${name} ${args}`, opts).trim();
+  } catch (_) {}
+
+  // Fallback: find the executable by known install locations
+  const fullPath = findExecutable(name);
+  if (fullPath) {
+    return execSync(`"${fullPath}" ${args}`, opts).trim();
+  }
+
+  return null;
+}
+
 // Check all prerequisites
 function getGsdStatus() {
   const status = {
@@ -32,25 +103,27 @@ function getGsdStatus() {
     latestVersion: null,
   };
 
+  const execOpts = { encoding: 'utf-8', timeout: 5000 };
+
   // Check Node.js
-  try {
-    const v = execSync('node --version', { encoding: 'utf-8', timeout: 5000 }).trim();
+  const nodeVer = tryExec('node', '--version', execOpts);
+  if (nodeVer) {
     status.nodeAvailable = true;
-    status.nodeVersion = v;
-  } catch (_) {}
+    status.nodeVersion = nodeVer;
+  }
 
   // Check npm
-  try {
-    execSync('npm --version', { encoding: 'utf-8', timeout: 5000 });
+  const npmVer = tryExec('npm', '--version', execOpts);
+  if (npmVer) {
     status.npmAvailable = true;
-  } catch (_) {}
+  }
 
   // Check Claude Code
-  try {
-    const v = execSync('claude --version', { encoding: 'utf-8', timeout: 10000 }).trim();
+  const claudeVer = tryExec('claude', '--version', { encoding: 'utf-8', timeout: 10000 });
+  if (claudeVer) {
     status.claudeAvailable = true;
-    status.claudeVersion = v;
-  } catch (_) {}
+    status.claudeVersion = claudeVer;
+  }
 
   // Check for GSD commands globally
   const home = process.env.USERPROFILE || process.env.HOME || '';
